@@ -2,3 +2,7 @@ beautifulsoup4~=4.12.3
 requests~=2.31.0
 pytest~=8.2.0
 openpyxl
+pymongo~=4.7.2
+pandas~=2.2.2
+mysql-connector-python
+python-dotenv

@@ -12,3 +12,18 @@ def consultar_bases_disponiveis():
 
     return list_bases
 
+
+def obter_rua_coordenada(lat, lng):
+    lat_str = str(lat)
+    lng_str = str(lng)
+    uri = "https://nominatim.openstreetmap.org/reverse.php?lat={}&lon={}&zoom=18&format=jsonv2".format(
+        lat_str.replace(",", "."), lng_str.replace(",", "."))
+
+    request = requests.get(uri)
+    json_resposta = json.loads(request.text)
+    try:
+        rua = json_resposta['address']['road']
+    except:
+        rua = ""
+    return rua
+

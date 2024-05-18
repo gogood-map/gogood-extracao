@@ -1,19 +1,20 @@
 from web import consultar_bases_disponiveis
 from data import ler_base
+from db import cadastrar
+
+
 menu = """
 GoGood - Wizard de extração
 """
-
-
-
 opcoes_database = """
+Escolha qual base de dados vai receber a extração
 1 - MYSQL
 2 - MongoDB
 3 - Ambos
 """
 
 
-
+bancos = ["MYSQL", "MONGODB", "AMBOS"]
 
 def main():
     print(menu)
@@ -25,7 +26,23 @@ def main():
 
     print("")
     base_escolhida = bases[int(input())-1]
-    ler_base(base_escolhida)
+    ocorrencias = ler_base(base_escolhida)
+
+
+    print(opcoes_database)
+    banco_escolhido = bancos[int(input())-1]
+    cadastrar(banco_escolhido, ocorrencias, base_escolhida)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
