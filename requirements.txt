@@ -5,4 +5,6 @@ openpyxl
 pymongo~=4.7.2
 pandas~=2.2.2
 mysql-connector-python
-python-dotenv
+python-dotenv~=1.0.1
+
+PyMySQL~=1.1.0

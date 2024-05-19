@@ -1,7 +1,7 @@
 from pymongo import MongoClient, errors
-import mysql.connector
-import pyodbc
 import pymysql
+
+import file
 from models.Base import Base
 from models.Ocorrencia import Ocorrencia
 from web import obter_rua_coordenada
@@ -29,10 +29,10 @@ def conectar_mysql():
         password=os.getenv("MYSQL_PASSWORD"),
         port=3306,
         db='GoGood',
-        charset='utf8'
     )
 
-    return conexao.cursor()
+
+    return conexao
 
 
 def inserir_mongo(ocorrencias, ano):
@@ -60,25 +60,29 @@ def inserir_mongo(ocorrencias, ano):
 
 
 def inserir_mysql(ocorrencias, ano):
-    cursor = conectar_mysql()
-
+    conexao = conectar_mysql()
+    cursor = conexao.cursor()
     cursor.execute("DELETE FROM ocorrencias WHERE ano_ocorrencia = {};".format(ano))
+    conexao.commit()
     i = 0
     mysql_inserts = "INSERT INTO ocorrencias VALUES "
     for index, o in ocorrencias.iterrows():
         ocorrencia = Ocorrencia(
-            o["ANO_BO"], o["NUM_BO"], o["RUA"], o["DESCR_TIPOLOCAL"], o["LATITUDE"],
+            o["ANO_BO"], o["NUM_BO"], o["DESCR_TIPOLOCAL"], o["RUA"], o["LATITUDE"],
             o["LONGITUDE"], o["CRIME"]
         )
-        insert_mysql = "(default, {}, {},{})".format(ocorrencia.lat, ocorrencia.lng, ocorrencia.ano)
-        insert_mysql+=","
-        mysql_inserts += insert_mysql
-        if i == 100:
-            cursor.execute(mysql_inserts[:-1])
-            mysql_inserts = "INSERT INTO ocorrencias VALUES "
-            i = 0
-        i += 1
 
+
+        insert_mysql = "(default, {}, {},{}),".format(ocorrencia.lng, ocorrencia.lat, ano)
+        mysql_inserts += insert_mysql
+    try:
+        cursor.execute(mysql_inserts[:-1])
+        conexao.commit()
+        conexao.close()
+
+        print("Dados inseridos")
+    except Exception as e:
+        print("Houve um erro"+e)
 
 def cadastrar(banco, ocorrencias, base_escolhida: Base):
     if banco == "MONGODB":
