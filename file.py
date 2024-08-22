@@ -9,3 +9,4 @@ def escrever(arquivo:TextIO, conteudo):
     arquivo.write(conteudo)
 
 
+

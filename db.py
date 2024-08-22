@@ -1,19 +1,28 @@
-from pymongo import MongoClient, errors
-import pymysql
-
-import file
-from models.Base import Base
-from models.Ocorrencia import Ocorrencia
-from web import obter_rua_coordenada
-from dotenv import load_dotenv
 import os
 
+import pymysql
+from dotenv import load_dotenv
+from pymongo import MongoClient, errors
+from unidecode import unidecode
+
+from models.Base import Base
+from models.Ocorrencia import Ocorrencia
+from web import obter_endereco_por_coordenada
+
 load_dotenv()
+## GEOJSON     split_rua = rua.upper().split(",")
 
 
 def conectar_mongodb():
     try:
-        cliente = MongoClient(os.getenv("MONGO_URL"))
+
+        from urllib.parse import quote_plus
+
+        uri = "mongodb://%s:%s@%s" % (
+            quote_plus(os.getenv('MONGO_USER')), quote_plus(os.getenv('MONGO_PASSWORD')), os.getenv('MONGO_HOST'))
+
+
+        cliente = MongoClient(uri)
         db = cliente['gogood']
         print("Conexão ao MongoDB bem-sucedida.")
         return db
@@ -35,45 +44,43 @@ def conectar_mysql():
     return conexao
 
 
-def inserir_mongo(ocorrencias, ano):
+def inserir_mongo(ocorrencias:list[Ocorrencia] , ano):
     db = conectar_mongodb()
     colecao = db['ocorrencias-detalhadas']
-    mongo_inserts = []
-    for index, o in ocorrencias.iterrows():
-        ocorrencia = Ocorrencia(
-            o["ANO_BO"], o["NUM_BO"], o["RUA"], o["DESCR_TIPOLOCAL"], o["LATITUDE"],
-            o["LONGITUDE"], o["CRIME"]
-        )
 
-        rua: str = obter_rua_coordenada(ocorrencia.lat, ocorrencia.lng)
+    colecao.delete_many({"ano":ano})
+    mongo_inserts = []
+    for ocorrencia in ocorrencias:
+
+        rua: str = obter_endereco_por_coordenada(ocorrencia.lat, ocorrencia.lng)
         if rua == "": rua = ocorrencia.rua
 
         insert_mongo = {'lat': ocorrencia.lat,
                         'lng': ocorrencia.lng,
                         'crime': ocorrencia.crime,
                         'ano': ocorrencia.ano,
-                        'rua': rua.upper()
+                        'rua':  unidecode(rua),
+                        'bairro': ocorrencia.bairro,
+                        'delegacia':ocorrencia.delegacia,
+                        'cidade': ocorrencia.cidade,
+                        'data_ocorrencia':o['DATA_OCORRENCIA_BO'],
+                        'periodo': o['DESC_PERIODO']
                         }
         mongo_inserts.append(insert_mongo)
 
     colecao.insert_many(mongo_inserts)
 
 
-def inserir_mysql(ocorrencias, ano):
+def inserir_mysql(ocorrencias:list[Ocorrencia], ano):
     conexao = conectar_mysql()
     cursor = conexao.cursor()
     cursor.execute("DELETE FROM ocorrencias WHERE ano_ocorrencia = {};".format(ano))
     conexao.commit()
     i = 0
     mysql_inserts = "INSERT INTO ocorrencias VALUES "
-    for index, o in ocorrencias.iterrows():
-        ocorrencia = Ocorrencia(
-            o["ANO_BO"], o["NUM_BO"], o["DESCR_TIPOLOCAL"], o["RUA"], o["LATITUDE"],
-            o["LONGITUDE"], o["CRIME"]
-        )
+    for o in ocorrencias:
 
-
-        insert_mysql = "(default, {}, {},{}),".format(ocorrencia.lng, ocorrencia.lat, ano)
+        insert_mysql = "(default, {}, {},{}),".format(o.lng, o.lat, ano)
         mysql_inserts += insert_mysql
     try:
         cursor.execute(mysql_inserts[:-1])
@@ -85,9 +92,9 @@ def inserir_mysql(ocorrencias, ano):
         print("Houve um erro"+e)
 
 def cadastrar(banco, ocorrencias, base_escolhida: Base):
-    if banco == "MONGODB":
+    if banco == banco.MONGO:
         inserir_mongo(ocorrencias, base_escolhida.ano_base)
-    elif banco == "MYSQL":
+    elif banco == banco.MYSQL:
         inserir_mysql(ocorrencias, base_escolhida.ano_base)
     else:
         inserir_mysql(ocorrencias, base_escolhida.ano_base)
