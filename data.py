@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import gc
 
 import pandas
@@ -10,7 +10,7 @@ from models.Ocorrencia import Ocorrencia
 def ler_base_excel(caminho_arquivo: str, ano: int):
     tem_segundo_semestre = False
 
-    if ano != datetime.datetime.now().year:
+    if ano != datetime.now().year:
         planilhas = [1]
     else:
         planilhas = [0, 1]
@@ -26,7 +26,7 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
                                     dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str})
         tem_segundo_semestre = False
 
-    if ano == datetime.date.today().year and tem_segundo_semestre:
+    if ano == datetime.now().year and tem_segundo_semestre:
         df_base = pandas.concat([df_base[0], df_base[1]])
     else:
         df_apoio = df_base[1]
@@ -99,7 +99,7 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
 
         ocorrencias_final.append(ocorrencia)
 
-    hoje = datetime.datetime.now()
+    hoje = datetime.now()
     ocorrencias_vias_publicas.to_csv(f"./backups/{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';', encoding='utf-8',
                                      index=False)
 
@@ -133,7 +133,7 @@ def ler_csv(caminho_arquivo):
 
 
 def definir_periodo(hora):
-    horario = datetime.datetime.strptime(hora, "%H:%M:%S")
+    horario = datetime.strptime(hora, "%H:%M:%S")
 
     madrugada = horario.replace(hour=0, minute=0)
     manha = horario.replace(hour=5, minute=59)

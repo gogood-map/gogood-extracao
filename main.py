@@ -1,4 +1,4 @@
-import datetime
+
 import os
 from datetime import datetime
 
@@ -27,7 +27,7 @@ def main():
     print(menu)
     print(opcoes_database)
     banco_escolhido = bancos[int(input()) - 1]
-    hoje = datetime.datetime.now()
+    hoje = datetime.now()
     print("Consultando bases atuais...")
     print("\nSelecione a base que deseja extrair:")
     bases: list[Base] = consultar_bases_disponiveis()
