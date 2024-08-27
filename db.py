@@ -62,8 +62,8 @@ def inserir_mongo(ocorrencias:list[Ocorrencia] , ano):
                     'bairro': ocorrencia.bairro,
                     'delegacia':ocorrencia.delegacia,
                     'cidade': ocorrencia.cidade,
-                    'data_ocorrencia':o['DATA_OCORRENCIA_BO'],
-                    'periodo': o['DESC_PERIODO']
+                    'data_ocorrencia':ocorrencia.data,
+                    'periodo': ocorrencia.periodo
         }
         mongo_inserts.append(insert_mongo)
 
