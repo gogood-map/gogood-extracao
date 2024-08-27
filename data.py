@@ -8,13 +8,13 @@ from models.Ocorrencia import Ocorrencia
 
 
 def ler_base_excel(caminho_arquivo: str, ano: int):
+    global df_apoio
     tem_segundo_semestre = False
 
     if ano != datetime.now().year:
         planilhas = [1]
     else:
         planilhas = [0, 1]
-
 
     try:
         df_base = pandas.read_excel(caminho_arquivo, sheet_name=planilhas,
@@ -28,7 +28,11 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
     if ano == datetime.now().year and tem_segundo_semestre:
         df_base = pandas.concat([df_base[0], df_base[1]])
     else:
-        df_apoio = df_base[1]
+        if ano == datetime.now().year:
+            df_apoio = df_base[0]
+        else:
+            df_apoio = df_base[1]
+
         df_base = df_apoio.copy()
         del df_apoio
         gc.collect()
@@ -98,7 +102,8 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
         ocorrencias_final.append(ocorrencia)
 
     hoje = datetime.now()
-    ocorrencias_vias_publicas.to_csv(f"./backups/dados_tratados_ano_{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';', encoding='utf-8',
+    ocorrencias_vias_publicas.to_csv(f"./backups/dados_tratados_ano_{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';',
+                                     encoding='utf-8',
                                      index=False)
 
     del ocorrencias_vias_publicas
