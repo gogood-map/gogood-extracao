@@ -10,7 +10,7 @@ class Ocorrencia:
     bairro: str
     cidade: str
     data: str
-    delegacia:str
+    delegacia: str
 
     def __init__(self, ano, num_bo, local, rua, lat, lng, crime, periodo, bairro, cidade, data, delegacia):
         self.data = data

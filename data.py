@@ -1,5 +1,5 @@
-from datetime import datetime
 import gc
+from datetime import datetime
 
 import pandas
 from unidecode import unidecode
@@ -14,7 +14,6 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
         planilhas = [1]
     else:
         planilhas = [0, 1]
-
 
 
     try:
@@ -92,7 +91,6 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
             cidade = unidecode(ocorrencia.cidade.upper())
 
         if ocorrencia.cidade == "S.PAULO": cidade = "SAO PAULO"
-        split_rua = ocorrencia.rua.upper().split(",")
 
         if (ocorrencia.periodo is None or ocorrencia == "Em hora incerta") and o['HORA_OCORRENCIA_BO'] is not None:
             ocorrencia.periodo = definir_periodo(o['HORA_OCORRENCIA_BO'])
@@ -100,7 +98,7 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
         ocorrencias_final.append(ocorrencia)
 
     hoje = datetime.now()
-    ocorrencias_vias_publicas.to_csv(f"./backups/{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';', encoding='utf-8',
+    ocorrencias_vias_publicas.to_csv(f"./backups/dados_tratados_ano_{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';', encoding='utf-8',
                                      index=False)
 
     del ocorrencias_vias_publicas
