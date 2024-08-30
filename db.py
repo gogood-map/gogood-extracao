@@ -10,7 +10,6 @@ from models.Ocorrencia import Ocorrencia
 load_dotenv()
 ## GEOJSON     split_rua = rua.upper().split(",")
 
-
 def conectar_mongodb():
     try:
         from urllib.parse import quote_plus
@@ -58,7 +57,7 @@ def inserir_mongo(ocorrencias:list[Ocorrencia] , ano):
                     'localizacao':geojson,
                     'crime': ocorrencia.crime,
                     'ano': ocorrencia.ano,
-                    'rua':  unidecode(rua),
+                    'rua':  rua,
                     'bairro': ocorrencia.bairro,
                     'delegacia':ocorrencia.delegacia,
                     'cidade': ocorrencia.cidade,
