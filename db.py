@@ -26,7 +26,7 @@ def conectar_mongodb():
 def excluir_ocorrencias_ano(ano, db):
     colecao = db['ocorrencias-detalhadas']
 
-    colecao.delete_many({"ano": ano})
+    colecao.delete_many({"ano": int(ano)})
 def inserir_mongo(insert, db):
     colecao = db['ocorrencias-detalhadas']
 
