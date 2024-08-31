@@ -117,6 +117,8 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
                                                                                    'bairro'] != "" else unidecode(
                 ocorrencia.bairro.upper())
 
+            if ocorrencia.cidade == "S.PAULO":
+                ocorrencia.cidade = "SAO PAULO"
         if (ocorrencia.periodo is None or ocorrencia == "Em hora incerta") and o['HORA_OCORRENCIA_BO'] is not None:
             ocorrencia.periodo = definir_periodo(o['HORA_OCORRENCIA_BO'])
 
