@@ -1,11 +1,16 @@
 import gc
 from datetime import datetime
+
 import pandas
 from unidecode import unidecode
-from models.Ocorrencia import Ocorrencia
+
+from db import excluir_ocorrencias_ano
+from db import inserir_mongo
+from db import conectar_mongodb
 from geo import reverter_coordenada_em_endereco
+from models.Ocorrencia import Ocorrencia
 
-
+db = conectar_mongodb()
 colunas_drop = [
     "NOME_DEPARTAMENTO",
     "NOME_SECCIONAL",
@@ -23,6 +28,7 @@ colunas_drop = [
 
 
 def ler_base_excel(caminho_arquivo: str, ano: int):
+    excluir_ocorrencias_ano(ano, db)
     print("Lendo Excel de Ocorrências")
     from main import hoje
     arquivo = pandas.ExcelFile(caminho_arquivo)
@@ -69,7 +75,6 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
     del df_base
     gc.collect()
 
-    ocorrencias_vias_publicas.sort_values(by='LATITUDE', inplace=True, kind="quicksort")
 
 
     for index, o in ocorrencias_vias_publicas.iterrows():
@@ -103,14 +108,32 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
                 ocorrencia.cidade = "SAO PAULO"
 
         else:
-            ocorrencia.rua = unidecode(endereco_busca['rua'].upper()) if endereco_busca['rua'] != "" else unidecode(ocorrencia.rua.upper())
-            ocorrencia.cidade = unidecode(endereco_busca['cidade'].upper()) if endereco_busca['cidade'] != "" else unidecode(ocorrencia.cidade.upper())
-            ocorrencia.bairro = unidecode(endereco_busca['bairro'].upper()) if endereco_busca['bairro'] != "" else unidecode(ocorrencia.bairro.upper())
+            ocorrencia.rua = unidecode(endereco_busca['rua'].upper()) if endereco_busca['rua'] != "" else unidecode(
+                ocorrencia.rua.upper())
+            ocorrencia.cidade = unidecode(endereco_busca['cidade'].upper()) if endereco_busca[
+                                                                                   'cidade'] != "" else unidecode(
+                ocorrencia.cidade.upper())
+            ocorrencia.bairro = unidecode(endereco_busca['bairro'].upper()) if endereco_busca[
+                                                                                   'bairro'] != "" else unidecode(
+                ocorrencia.bairro.upper())
 
         if (ocorrencia.periodo is None or ocorrencia == "Em hora incerta") and o['HORA_OCORRENCIA_BO'] is not None:
             ocorrencia.periodo = definir_periodo(o['HORA_OCORRENCIA_BO'])
 
-        ocorrencias_final.append(ocorrencia)
+        geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lat), float(ocorrencia.lng)]}
+        mongo_insert = {
+            'localizacao': geojson,
+            'crime': ocorrencia.crime,
+            'ano': ocorrencia.ano,
+            'rua': ocorrencia.rua,
+            'bairro': ocorrencia.bairro,
+            'delegacia': ocorrencia.delegacia,
+            'cidade': ocorrencia.cidade,
+            'data_ocorrencia': ocorrencia.data,
+            'periodo': ocorrencia.periodo
+        }
+        inserir_mongo(mongo_insert, db)
+
 
     ocorrencias_vias_publicas.to_csv(f"./backups/dados_tratados_ano_{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';',
                                      encoding='utf-8',
@@ -118,12 +141,11 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
 
     del ocorrencias_vias_publicas
     gc.collect()
-    return ocorrencias_final
 
 
-def ler_csv(caminho_arquivo):
+def ler_csv(caminho_arquivo, ano):
+    excluir_ocorrencias_ano(ano, db)
     print("Lendo CSV")
-    ocorrencias_final: list[Ocorrencia] = []
     df_csv = pandas.read_csv(caminho_arquivo, sep=";", dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str})
 
     for i, o in df_csv.iterrows():
@@ -141,9 +163,21 @@ def ler_csv(caminho_arquivo):
             o['DATA_OCORRENCIA_BO'],
             o['NOME_DELEGACIA']
         )
-        ocorrencias_final.append(ocorrencia)
+        geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lat), float(ocorrencia.lng)]}
+        mongo_insert = {
+            'localizacao': geojson,
+            'crime': ocorrencia.crime,
+            'ano': ocorrencia.ano,
+            'rua': ocorrencia.rua,
+            'bairro': ocorrencia.bairro,
+            'delegacia': ocorrencia.delegacia,
+            'cidade': ocorrencia.cidade,
+            'data_ocorrencia': ocorrencia.data,
+            'periodo': ocorrencia.periodo
+        }
+        inserir_mongo(mongo_insert, db)
 
-    return ocorrencias_final
+
 
 
 def definir_periodo(hora):

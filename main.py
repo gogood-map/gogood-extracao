@@ -4,12 +4,10 @@ from datetime import datetime
 hoje = datetime.now()
 from data import ler_base_excel
 from data import ler_csv
-from db import cadastrar
 from models.Base import Base
 from web import consultar_bases_disponiveis
 from web import download
 from db import conectar_mongodb
-
 menu = """
 GoGood - Extração de Ocorrências da base do SSP
 """
@@ -28,17 +26,15 @@ def main():
 
         if os.path.exists(caminho_csv):
             print("CSV encontrado.")
-            ocorrencias = ler_csv(caminho_csv)
+            ler_csv(caminho_csv, base.ano_base)
         else:
             if os.path.exists(caminho_excel_temp):
                 print("EXCEL encontrado.")
-                ocorrencias = ler_base_excel(caminho_excel_temp, base.ano_base)
+                ler_base_excel(caminho_excel_temp, base.ano_base)
             else:
                 print("Realizando download da base...")
                 caminho_arquivo = download(base.arquivo, base.ano_base)
-                ocorrencias = ler_base_excel(caminho_arquivo, base.ano_base)
-
-        cadastrar(ocorrencias, base)
+                ler_base_excel(caminho_arquivo, base.ano_base)
 
 
 if __name__ == '__main__':

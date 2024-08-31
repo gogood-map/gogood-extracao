@@ -1,5 +1,5 @@
 from geopy.geocoders import Nominatim
-import json
+
 
 def reverter_coordenada_em_endereco(lat, lng):
     nominatim = Nominatim(user_agent="gogood")
