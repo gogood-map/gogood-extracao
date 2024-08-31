@@ -4,12 +4,17 @@ import json
 def reverter_coordenada_em_endereco(lat, lng):
     nominatim = Nominatim(user_agent="gogood")
     busca = nominatim.reverse("{}, {}".format(lat, lng), language="pt-br")
-    if hasattr(busca, 'address'):
+    if 'address' in busca:
+
+        rua = busca.raw['address']['road'] if 'road' in busca.raw['address'] else ""
+        bairro = busca.raw['address']['quarter'] if 'road' in busca.raw['address'] else ""
+        cidade = busca.raw['address']['city'] if 'road' in busca.raw['address'] else ""
         endereco = {
-            "rua": busca.raw['address']['road'],
-            "cidade": busca.raw['address']['city'],
-            "bairro": busca.raw['address']['quarter'],
+            "rua": rua,
+            "cidade": bairro,
+            "bairro": cidade,
         }
+
         return endereco
     else:
         return None
