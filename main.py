@@ -7,14 +7,15 @@ from data import ler_csv
 from models.Base import Base
 from web import consultar_bases_disponiveis
 from web import download
-from db import conectar_mongodb
+from db import Db
 menu = """
 GoGood - Extração de Ocorrências da base do SSP
 """
 
 
 def main():
-    conectar_mongodb()
+    db = Db()
+    db.conectar_mongodb()
     print("Consultando bases atuais...")
     bases: list[Base] = consultar_bases_disponiveis()
 

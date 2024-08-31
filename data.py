@@ -1,16 +1,11 @@
 import gc
 from datetime import datetime
-
 import pandas
 from unidecode import unidecode
-
-from db import excluir_ocorrencias_ano
-from db import inserir_mongo
-from db import conectar_mongodb
 from geo import reverter_coordenada_em_endereco
 from models.Ocorrencia import Ocorrencia
+from db import Db
 
-db = conectar_mongodb()
 colunas_drop = [
     "NOME_DEPARTAMENTO",
     "NOME_SECCIONAL",
@@ -28,9 +23,12 @@ colunas_drop = [
 
 
 def ler_base_excel(caminho_arquivo: str, ano: int):
-    excluir_ocorrencias_ano(ano, db)
-    print("Lendo Excel de Ocorrências")
     from main import hoje
+    db = Db()
+
+
+    print("Lendo Excel de Ocorrências")
+
     arquivo = pandas.ExcelFile(caminho_arquivo)
     abas = []
     for aba in arquivo.sheet_names:
@@ -42,9 +40,7 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
         aba_extracao = abas[1]
 
     df_base = pandas.read_excel(caminho_arquivo, sheet_name=aba_extracao,
-                                dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str})
-
-    ocorrencias_final: list[Ocorrencia] = []
+                                dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str, 'DATA_OCORRENCIA_BO': str})
 
     coordenadas_invalidas = df_base.query('LATITUDE.isnull() | LONGITUDE.isnull() | LATITUDE == "0" | LONGITUDE == "0"',
                                           engine='python').index
@@ -71,18 +67,19 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
 
     ocorrencias_vias_publicas = df_base.query(
         'DESCR_TIPOLOCAL == "Via Pública" | DESCR_TIPOLOCAL == "Ciclofaixa" | DESCR_TIPOLOCAL == "Praça"')
+    ocorrencias_vias_publicas = ocorrencias_vias_publicas.sort_values('LOGRADOURO', axis=0)
+    ocorrencias_vias_publicas['CIDADE'] = ocorrencias_vias_publicas['CIDADE'].str.replace('S.PAULO', 'SAO PAULO')
+
 
     del df_base
     gc.collect()
-
-
-
+    db.excluir_ocorrencias_ano(ano)
     for index, o in ocorrencias_vias_publicas.iterrows():
         ocorrencia = Ocorrencia(
             o["ANO_BO"],
             o["NUM_BO"],
             o["DESCR_TIPOLOCAL"],
-            o["LOGRADOURO"],
+            "{}".format(o["LOGRADOURO"]).split(",")[0],
             o["LATITUDE"],
             o["LONGITUDE"],
             o["NATUREZA_APURADA"],
@@ -93,32 +90,24 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
             o['NOME_DELEGACIA']
         )
 
-        endereco_busca = reverter_coordenada_em_endereco(ocorrencia.lat, ocorrencia.lng)
-        if endereco_busca is None:
-            ocorrencia.rua = "{}".format(o["LOGRADOURO"]).strip()
-            ocorrencia.bairro = "{}".format(o["BAIRRO"]).strip()
-            ocorrencia.cidade = "{}".format(o["CIDADE"]).strip()
+        query_cidade_bairro = {'cidade': normalizar(ocorrencia.cidade),
+                               'bairro': normalizar(ocorrencia.bairro)
+                               }
+        doc_cidade_bairro = db.buscar_documento_unico('ocorrencias-detalhadas', query_cidade_bairro)
+        if doc_cidade_bairro:
+            query_rua = {'rua': normalizar(ocorrencia.rua)}
+            doc_rua = db.buscar_documento_unico('ocorrencias-detalhadas', query_rua)
 
-            ocorrencia.rua = unidecode(ocorrencia.rua.upper())
-            if ocorrencia.bairro is not None:
-                ocorrencia.bairro = unidecode(ocorrencia.bairro.upper())
-            if ocorrencia.cidade is not None:
-                ocorrencia.cidade = unidecode(ocorrencia.cidade.upper())
-            if ocorrencia.cidade == "S.PAULO":
-                ocorrencia.cidade = "SAO PAULO"
+            ocorrencia.rua = normalizar(ocorrencia.rua)
+            ocorrencia.bairro = normalizar(ocorrencia.bairro)
+            ocorrencia.cidade = normalizar(ocorrencia.cidade)
+            if doc_rua is None:
+                ocorrencia = buscar_informacoes_endereco_ocorrencia(ocorrencia)
 
         else:
-            ocorrencia.rua = unidecode(endereco_busca['rua'].upper()) if endereco_busca['rua'] != "" else unidecode(
-                ocorrencia.rua.upper())
-            ocorrencia.cidade = unidecode(endereco_busca['cidade'].upper()) if endereco_busca[
-                                                                                   'cidade'] != "" else unidecode(
-                ocorrencia.cidade.upper())
-            ocorrencia.bairro = unidecode(endereco_busca['bairro'].upper()) if endereco_busca[
-                                                                                   'bairro'] != "" else unidecode(
-                ocorrencia.bairro.upper())
+            ocorrencia = buscar_informacoes_endereco_ocorrencia(ocorrencia)
 
-            if ocorrencia.cidade == "S.PAULO":
-                ocorrencia.cidade = "SAO PAULO"
+
         if (ocorrencia.periodo is None or ocorrencia == "Em hora incerta") and o['HORA_OCORRENCIA_BO'] is not None:
             ocorrencia.periodo = definir_periodo(o['HORA_OCORRENCIA_BO'])
 
@@ -134,8 +123,11 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
             'data_ocorrencia': ocorrencia.data,
             'periodo': ocorrencia.periodo
         }
-        inserir_mongo(mongo_insert, db)
 
+        try:
+            db.inserir_mongo(mongo_insert)
+        finally:
+            pass
 
     ocorrencias_vias_publicas.to_csv(f"./backups/dados_tratados_ano_{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';',
                                      encoding='utf-8',
@@ -145,8 +137,31 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
     gc.collect()
 
 
+def buscar_informacoes_endereco_ocorrencia(ocorrencia):
+    endereco_busca = reverter_coordenada_em_endereco(ocorrencia.lat, ocorrencia.lng)
+    if endereco_busca is None:
+        ocorrencia.rua = ocorrencia.rua.strip()
+        ocorrencia.bairro = ocorrencia.bairro.strip()
+        ocorrencia.cidade = ocorrencia.cidade.strip()
+
+        if ocorrencia.cidade == "S.PAULO":
+            ocorrencia.cidade = "SAO PAULO"
+
+    else:
+        ocorrencia.rua = normalizar(endereco_busca['rua']) if endereco_busca[
+                                                                  'rua'] != "" else ocorrencia.rua
+        ocorrencia.cidade = normalizar(endereco_busca['cidade']) if endereco_busca[
+                                                                        'cidade'] != "" else ocorrencia.cidade
+        ocorrencia.bairro = normalizar(endereco_busca['bairro']) if endereco_busca[
+                                                                        'bairro'] != "" else ocorrencia.bairro
+
+        if ocorrencia.cidade == "S.PAULO":
+            ocorrencia.cidade = "SAO PAULO"
+    return ocorrencia
+
+
 def ler_csv(caminho_arquivo, ano):
-    excluir_ocorrencias_ano(ano, db)
+    Db().excluir_ocorrencias_ano(ano)
     print("Lendo CSV")
     df_csv = pandas.read_csv(caminho_arquivo, sep=";", dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str})
 
@@ -177,9 +192,7 @@ def ler_csv(caminho_arquivo, ano):
             'data_ocorrencia': ocorrencia.data,
             'periodo': ocorrencia.periodo
         }
-        inserir_mongo(mongo_insert, db)
-
-
+        Db().inserir_mongo(mongo_insert)
 
 
 def definir_periodo(hora):
@@ -198,3 +211,8 @@ def definir_periodo(hora):
         return "Tarde"
     else:
         return "Noite"
+
+
+def normalizar(texto):
+    texto = "{}".format(texto)
+    return "{}".format(unidecode(texto)).upper()
