@@ -140,10 +140,6 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
 def buscar_informacoes_endereco_ocorrencia(ocorrencia):
     endereco_busca = reverter_coordenada_em_endereco(ocorrencia.lat, ocorrencia.lng)
     if endereco_busca is None:
-        ocorrencia.rua = ocorrencia.rua.strip()
-        ocorrencia.bairro = ocorrencia.bairro.strip()
-        ocorrencia.cidade = ocorrencia.cidade.strip()
-
         if ocorrencia.cidade == "S.PAULO":
             ocorrencia.cidade = "SAO PAULO"
 
@@ -215,4 +211,4 @@ def definir_periodo(hora):
 
 def normalizar(texto):
     texto = "{}".format(texto)
-    return "{}".format(unidecode(texto)).upper()
+    return "{}".format(unidecode(texto)).upper().strip()
