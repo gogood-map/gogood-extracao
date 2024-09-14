@@ -28,11 +28,10 @@ class Db:
 
     def excluir_ocorrencias_ano(self,ano):
         colecao = self.db['ocorrencias-detalhadas']
-
         colecao.delete_many({"ano": int(ano)})
-    def inserir_mongo(self, insert):
+    def inserir_ocorrencias(self, insert:list):
         colecao = self.db['ocorrencias-detalhadas']
-        colecao.insert_one(insert)
+        colecao.insert_many(insert)
 
     def buscar_documento_unico(self, colecao, query):
         colecao_banco = self.db[colecao]

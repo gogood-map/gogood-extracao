@@ -4,7 +4,7 @@ import pandas
 from unidecode import unidecode
 from geo import reverter_coordenada_em_endereco
 from models.Ocorrencia import Ocorrencia
-from db import Db
+from models.Db import Db
 
 colunas_drop = [
     "NOME_DEPARTAMENTO",
@@ -23,9 +23,7 @@ colunas_drop = [
 
 
 def ler_base_excel(caminho_arquivo: str, ano: int):
-    from main import hoje
     db = Db()
-
 
     print("Lendo Excel de Ocorrências")
 
@@ -67,13 +65,12 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
 
     ocorrencias_vias_publicas = df_base.query(
         'DESCR_TIPOLOCAL == "Via Pública" | DESCR_TIPOLOCAL == "Ciclofaixa" | DESCR_TIPOLOCAL == "Praça"')
-    ocorrencias_vias_publicas = ocorrencias_vias_publicas.sort_values('LOGRADOURO', axis=0)
-    ocorrencias_vias_publicas['CIDADE'] = ocorrencias_vias_publicas['CIDADE'].str.replace('S.PAULO', 'SAO PAULO')
-
+    ocorrencias_vias_publicas = ocorrencias_vias_publicas.sort_values('CIDADE', axis=0)
 
     del df_base
     gc.collect()
     db.excluir_ocorrencias_ano(ano)
+    insercoes_mongo: list = []
     for index, o in ocorrencias_vias_publicas.iterrows():
         ocorrencia = Ocorrencia(
             o["ANO_BO"],
@@ -107,12 +104,11 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
         else:
             ocorrencia = buscar_informacoes_endereco_ocorrencia(ocorrencia)
 
-
         if (ocorrencia.periodo is None or ocorrencia == "Em hora incerta") and o['HORA_OCORRENCIA_BO'] is not None:
             ocorrencia.periodo = definir_periodo(o['HORA_OCORRENCIA_BO'])
 
         geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lat), float(ocorrencia.lng)]}
-        mongo_insert = {
+        insercao = {
             'localizacao': geojson,
             'crime': ocorrencia.crime,
             'ano': ocorrencia.ano,
@@ -123,18 +119,33 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
             'data_ocorrencia': ocorrencia.data,
             'periodo': ocorrencia.periodo
         }
-
-        try:
-            db.inserir_mongo(mongo_insert)
-        finally:
-            pass
-
-    ocorrencias_vias_publicas.to_csv(f"./backups/dados_tratados_ano_{ano}_{hoje.strftime('%Y_%m_%d')}.csv", sep=';',
-                                     encoding='utf-8',
-                                     index=False)
+        insercoes_mongo.append(insercao)
+        if len(insercoes_mongo) == 1000:
+            try:
+                db.inserir_ocorrencias(insercoes_mongo)
+            finally:
+                insercoes_mongo = []
 
     del ocorrencias_vias_publicas
     gc.collect()
+
+
+def definir_periodo(hora):
+    horario = datetime.strptime(hora, "%H:%M:%S")
+
+    madrugada = horario.replace(hour=0, minute=0)
+    manha = horario.replace(hour=5, minute=59)
+    tarde = horario.replace(hour=12, minute=0)
+    noite = horario.replace(hour=19, minute=0)
+
+    if horario >= madrugada and horario < manha:
+        return "Madrugada"
+    elif horario >= manha and horario < tarde:
+        return "Manhã"
+    elif horario >= tarde and horario < noite:
+        return "Tarde"
+    else:
+        return "Noite"
 
 
 def buscar_informacoes_endereco_ocorrencia(ocorrencia):
@@ -154,59 +165,6 @@ def buscar_informacoes_endereco_ocorrencia(ocorrencia):
         if ocorrencia.cidade == "S.PAULO":
             ocorrencia.cidade = "SAO PAULO"
     return ocorrencia
-
-
-def ler_csv(caminho_arquivo, ano):
-    Db().excluir_ocorrencias_ano(ano)
-    print("Lendo CSV")
-    df_csv = pandas.read_csv(caminho_arquivo, sep=";", dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str})
-
-    for i, o in df_csv.iterrows():
-        ocorrencia = Ocorrencia(
-            o["ANO_BO"],
-            o["NUM_BO"],
-            o["DESCR_TIPOLOCAL"],
-            o["LOGRADOURO"],
-            o["LATITUDE"],
-            o["LONGITUDE"],
-            o["NATUREZA_APURADA"],
-            o['DESC_PERIODO'],
-            o["BAIRRO"],
-            o["CIDADE"],
-            o['DATA_OCORRENCIA_BO'],
-            o['NOME_DELEGACIA']
-        )
-        geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lat), float(ocorrencia.lng)]}
-        mongo_insert = {
-            'localizacao': geojson,
-            'crime': ocorrencia.crime,
-            'ano': ocorrencia.ano,
-            'rua': ocorrencia.rua,
-            'bairro': ocorrencia.bairro,
-            'delegacia': ocorrencia.delegacia,
-            'cidade': ocorrencia.cidade,
-            'data_ocorrencia': ocorrencia.data,
-            'periodo': ocorrencia.periodo
-        }
-        Db().inserir_mongo(mongo_insert)
-
-
-def definir_periodo(hora):
-    horario = datetime.strptime(hora, "%H:%M:%S")
-
-    madrugada = horario.replace(hour=0, minute=0)
-    manha = horario.replace(hour=5, minute=59)
-    tarde = horario.replace(hour=12, minute=0)
-    noite = horario.replace(hour=19, minute=0)
-
-    if horario >= madrugada and horario < manha:
-        return "Madrugada"
-    elif horario >= manha and horario < tarde:
-        return "Manhã"
-    elif horario >= tarde and horario < noite:
-        return "Tarde"
-    else:
-        return "Noite"
 
 
 def normalizar(texto):

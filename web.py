@@ -20,30 +20,3 @@ def consultar_bases_disponiveis():
 
     return list_bases
 
-
-def download(url, ano):
-    print("Realizando download do arquivo...")
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry
-
-    retry_strategy = Retry(
-        total=3,
-        backoff_factor=1
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    http = requests.Session()
-    http.mount("https://", adapter)
-    http.mount("http://", adapter)
-
-    req = http.get(url, stream=True)
-    caminho_arquivo = './temp/ocorrencias_temp_{}.xlsx'.format(ano)
-
-    if os.path.exists(caminho_arquivo):
-        os.remove(caminho_arquivo)
-
-    with open(caminho_arquivo, 'wb') as f:
-        for chunk in req.iter_content(chunk_size=16 * 1024):
-            f.write(chunk)
-
-    return caminho_arquivo
-
