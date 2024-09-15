@@ -109,7 +109,7 @@ def ler_base_excel(caminho_arquivo: str, ano: int):
         if (ocorrencia.periodo is None or ocorrencia == "Em hora incerta") and o['HORA_OCORRENCIA_BO'] is not None:
             ocorrencia.periodo = definir_periodo(o['HORA_OCORRENCIA_BO'])
 
-        geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lat), float(ocorrencia.lng)]}
+        geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lng), float(ocorrencia.lat)]}
         insercao = {
             'localizacao': geojson,
             'crime': ocorrencia.crime,
