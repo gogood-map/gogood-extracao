@@ -2,9 +2,8 @@ import os
 
 from dotenv import load_dotenv
 from pymongo import MongoClient, errors
-from models.Base import Base
 
-load_dotenv()
+
 ## GEOJSON     split_rua = rua.upper().split(",")
 class Db:
     db: any
@@ -12,6 +11,7 @@ class Db:
     def __init__(self):
         self.db = self.conectar_mongodb()
     def conectar_mongodb(self):
+        load_dotenv()
         try:
             from urllib.parse import quote_plus
             uri = "mongodb://%s:%s@%s" % (

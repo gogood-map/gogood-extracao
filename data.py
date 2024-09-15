@@ -1,10 +1,12 @@
 import gc
 from datetime import datetime
+
 import pandas
 from unidecode import unidecode
+
 from geo import reverter_coordenada_em_endereco
-from models.Ocorrencia import Ocorrencia
 from models.Db import Db
+from models.Ocorrencia import Ocorrencia
 
 colunas_drop = [
     "NOME_DEPARTAMENTO",
