@@ -25,9 +25,10 @@ class Ocorrencia:
         self.ano = ano
         self.periodo = periodo
         self.delegacia = delegacia
-        self.tratar_coordenada()
 
-    def tratar_coordenada(self):
+        self.formatar_coordenadas()
+
+    def formatar_coordenadas(self):
         latitude: str = self.lat
         longitude: str = self.lng
 
