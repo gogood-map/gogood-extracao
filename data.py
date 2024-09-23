@@ -61,6 +61,8 @@ def tratar_base(df: DataFrame):
 
     ocorrencias_vias_publicas = df.query(
         'DESCR_TIPOLOCAL == "Via Pública" | DESCR_TIPOLOCAL == "Ciclofaixa" | DESCR_TIPOLOCAL == "Praça"')
+
+    ocorrencias_vias_publicas.sort_values(['LOGRADOURO', 'BAIRRO', 'CIDADE'], ascending=[True, True])
     return ocorrencias_vias_publicas
 
 
