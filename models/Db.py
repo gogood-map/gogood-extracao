@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from pymongo import errors
 import motor.motor_asyncio
 
+
 class Db:
     db: any
     colecao: any
@@ -40,9 +41,11 @@ class Db:
     async def inserir_lista(self, insert):
         await self.colecao.insert_many(insert)
 
+    async def buscar_max(self, campo):
+        return await self.colecao.find_one(sort=[(campo, -1)])
+
     async def buscar(self, query):
         return await self.colecao.find(query)
 
     async def buscar_unico(self, query):
         return await self.colecao.find_one(query)
-

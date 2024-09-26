@@ -6,13 +6,12 @@ class Ocorrencia:
     lat: str
     lng: str
     crime: str
-    periodo: str
     bairro: str
     cidade: str
     data: str
     delegacia: str
-
-    def __init__(self, ano, num_bo, local, rua, lat, lng, crime, periodo, bairro, cidade, data, delegacia):
+    data_bo: str
+    def __init__(self, ano, num_bo, local, rua, lat, lng, crime, bairro, cidade, data, delegacia, data_bo):
         self.data = data
         self.cidade = cidade
         self.bairro = bairro
@@ -23,10 +22,10 @@ class Ocorrencia:
         self.local = local
         self.num_bo = num_bo
         self.ano = ano
-        self.periodo = periodo
         self.delegacia = delegacia
-
+        self.data_bo = data_bo
         self.formatar_coordenadas()
+
 
     def formatar_coordenadas(self):
         latitude: str = self.lat

@@ -158,6 +158,8 @@ cython_debug/
 .env
 /temp/*.xlsx
 /backups/*.csv
+/temp/*.csv
+*.ipynb
 /backups
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

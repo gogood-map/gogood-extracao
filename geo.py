@@ -10,6 +10,8 @@ async def reverter_coordenada_em_endereco(lat, lng):
     async with Nominatim(user_agent=agent, adapter_factory=AioHTTPAdapter, timeout=500) as nominatim:
         busca = await nominatim.reverse(f"{lat}, {lng}", language="pt-br")
 
+        if busca is None:
+            return "", "", ""
         if 'address' in busca.raw:
             rua = busca.raw['address'].get('road', "")
             bairro = busca.raw['address'].get('quarter', "")
