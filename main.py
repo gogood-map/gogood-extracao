@@ -17,8 +17,8 @@ async def main():
     print("Consultando bases atuais...")
 
     bases: list[Base] = [
-        Base(arquivo="./temp/ocorrencias_temp_2024.CSV", ano_base=2024),
-        Base(arquivo="./temp/ocorrencias_temp_2023.CSV", ano_base=2023),
+        Base(arquivo="./temp/ocorrencias_temp_2024.csv", ano_base=2024),
+        Base(arquivo="./temp/ocorrencias_temp_2023.csv", ano_base=2023),
     ]
     enderecos = Enderecos()
     for base in bases:

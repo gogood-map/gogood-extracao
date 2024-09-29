@@ -14,22 +14,21 @@ db = Db('ocorrencias-detalhadas')
 ano_base = 0
 
 
-
-
 async def ler_base_excel(caminho_arquivo: str, ano: int, enderecos: Enderecos):
     global ano_base
     definir_ano(ano)
     print(ano_base)
     print("Lendo Base de Ocorrências")
 
-
-
     df_base = pandas.read_csv(caminho_arquivo, sep=";",
-                                dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str, 'DATA_OCORRENCIA_BO': str,
-                                       'DATA_COMUNICACAO': str, "ANO_BO":int}, low_memory=False)
+                              dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str, 'DATA_OCORRENCIA_BO': str,
+                                     'DATA_COMUNICACAO': str, "ANO_BO": int}, low_memory=False)
 
     df_base['DATA_COMUNICACAO'] = pandas.to_datetime(df_base['DATA_COMUNICACAO'], errors='coerce', dayfirst=True)
+
+
     df_base['DATA_OCORRENCIA_BO'] = pandas.to_datetime(df_base['DATA_OCORRENCIA_BO'], errors='coerce', dayfirst=True)
+
 
     print(f"A Base contém {df_base['NUM_BO'].shape[0]} registros não tratados.")
     print("Tratando dados...")
@@ -79,11 +78,14 @@ def tratar_base(df: DataFrame):
 
 async def inserir_dados(df: DataFrame, enderecos: Enderecos):
     await db.excluir({'ano': ano_base})
-    indice_linha = 0
-    for i, linha in df.iterrows():
-
+    tamanho_df = len(df)
+    i = 0
+    df['contagem_ocorrencias'] = df.groupby(['LOGRADOURO', 'BAIRRO', 'CIDADE'])['LOGRADOURO'].transform('count')
+    df.sort_values(['contagem_ocorrencias'], inplace=True, ascending=[False])
+    df.reset_index(drop=True, inplace=True)
+    while i < tamanho_df:
         o = df.loc[i]
-        indice_linha+=1
+        i += 1
 
         cidade_antes_tratamento = o['CIDADE']
         bairro_antes_tratamento = o['BAIRRO']
@@ -102,21 +104,68 @@ async def inserir_dados(df: DataFrame, enderecos: Enderecos):
         df.loc[df["BAIRRO"] == bairro_antes_tratamento, 'BAIRRO'] = ocorrencia.bairro
         df.loc[df["CIDADE"] == cidade_antes_tratamento, 'CIDADE'] = ocorrencia.cidade
 
-        geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lng), float(ocorrencia.lat)]}
-        insercao = {
-            'num_bo': ocorrencia.num_bo,
-            'localizacao': geojson,
-            'crime': ocorrencia.crime,
-            'tipo_local': ocorrencia.local,
-            'ano': ocorrencia.ano,
-            'rua': ocorrencia.rua,
-            'bairro': ocorrencia.bairro,
-            'delegacia': ocorrencia.delegacia,
-            'cidade': ocorrencia.cidade,
-            'data_ocorrencia': ocorrencia.data,
-            'data_abertura_bo': ocorrencia.data_bo,
-        }
-        await db.inserir(insercao)
+        df_ocorrencias_mesmo_endereco = df.query(
+            'LOGRADOURO == "{}" & BAIRRO == "{}" & CIDADE == "{}"'.format(
+                ocorrencia.rua,
+                ocorrencia.bairro,
+                ocorrencia.cidade
+            ))
+
+        indices_exclusao = df_ocorrencias_mesmo_endereco.index
+        df.drop(indices_exclusao, inplace=True, axis=0)
+
+        df_ocorrencias_mesmo_endereco.reset_index(drop=True, inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        tamanho_df = len(df)
+
+        await inserir_ocorrencias(df_ocorrencias_mesmo_endereco)
+
+
+async def inserir_ocorrencias(df_insercao: DataFrame):
+    i = 0
+    tamanho_df = len(df_insercao)
+
+    lista_insercao = []
+
+    while i < tamanho_df:
+        lista_insercao.append(converter_linha_documento(df_insercao.loc[i]))
+        i += 1
+
+    await db.inserir_lista(lista_insercao)
+
+
+def converter_linha_documento(linha: Series):
+    ocorrencia = Ocorrencia(
+        ano_base,
+        linha["NUM_BO"],
+        linha["DESCR_TIPOLOCAL"],
+        "{}".format(linha["LOGRADOURO"]).split(",")[0],
+        linha["LATITUDE"],
+        linha["LONGITUDE"],
+        linha["NATUREZA_APURADA"],
+        linha["BAIRRO"],
+        linha["CIDADE"],
+        linha['DATA_OCORRENCIA_BO'],
+        linha['NOME_DELEGACIA'],
+        linha['DATA_COMUNICACAO']
+    )
+
+
+    geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lng), float(ocorrencia.lat)]}
+    documento = {
+        'num_bo': ocorrencia.num_bo,
+        'localizacao': geojson,
+        'crime': ocorrencia.crime,
+        'tipo_local': ocorrencia.local,
+        'ano': ocorrencia.ano,
+        'rua': ocorrencia.rua,
+        'bairro': ocorrencia.bairro,
+        'delegacia': ocorrencia.delegacia,
+        'cidade': ocorrencia.cidade,
+        'data_ocorrencia': ocorrencia.data,
+        'data_abertura_bo': ocorrencia.data_bo,
+    }
+    return documento
 
 
 async def tratar_ocorrencia(registro: Series, enderecos: Enderecos):
@@ -160,7 +209,6 @@ async def tratar_ocorrencia(registro: Series, enderecos: Enderecos):
         ocorrencia.rua = normalizar(ocorrencia.rua)
         ocorrencia.bairro = normalizar(ocorrencia.bairro)
         ocorrencia.cidade = normalizar(ocorrencia.cidade)
-
 
     return ocorrencia
 
