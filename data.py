@@ -251,6 +251,8 @@ async def buscar_informacoes_endereco_ocorrencia(ocorrencia):
 
 def normalizar(texto):
     texto = "{}".format(texto)
+    texto = texto.replace('"', "")
+    texto = texto.replace("'", "")
     return "{}".format(unidecode(texto)).upper().strip()
 
 
