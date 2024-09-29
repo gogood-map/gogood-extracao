@@ -26,9 +26,7 @@ async def ler_base_excel(caminho_arquivo: str, ano: int, enderecos: Enderecos):
 
     df_base['DATA_COMUNICACAO'] = pandas.to_datetime(df_base['DATA_COMUNICACAO'], errors='coerce', dayfirst=True)
 
-
     df_base['DATA_OCORRENCIA_BO'] = pandas.to_datetime(df_base['DATA_OCORRENCIA_BO'], errors='coerce', dayfirst=True)
-
 
     print(f"A Base contém {df_base['NUM_BO'].shape[0]} registros não tratados.")
     print("Tratando dados...")
@@ -45,10 +43,18 @@ def tratar_base(df: DataFrame):
     df.drop(ocorrencias_invalidas, axis=0, inplace=True)
     df["LATITUDE"] = df["LATITUDE"].replace(",", ".", regex=True)
     df["LONGITUDE"] = df["LONGITUDE"].replace(",", ".", regex=True)
+
+    df = df.astype(
+        {
+            'DATA_OCORRENCIA_BO': str,
+            'DATA_COMUNICACAO': str
+        }
+    )
+
     del ocorrencias_invalidas
 
     gc.collect()
-
+    print(df.info())
     df.drop(columns=[
         "NOME_DEPARTAMENTO",
         "NOME_SECCIONAL",
@@ -149,7 +155,6 @@ def converter_linha_documento(linha: Series):
         linha['NOME_DELEGACIA'],
         linha['DATA_COMUNICACAO']
     )
-
 
     geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lng), float(ocorrencia.lat)]}
     documento = {
