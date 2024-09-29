@@ -49,3 +49,6 @@ class Db:
 
     async def buscar_unico(self, query):
         return await self.colecao.find_one(query)
+
+    async def buscar_ultimo_inserido(self):
+        return await self.colecao.find_one({}, sort=[('_id', -1)])

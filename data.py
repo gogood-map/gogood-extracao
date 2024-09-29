@@ -83,12 +83,20 @@ def tratar_base(df: DataFrame):
 
 
 async def inserir_dados(df: DataFrame, enderecos: Enderecos):
-    await db.excluir({'ano': ano_base})
-    tamanho_df = len(df)
-    i = 0
+
     df['contagem_ocorrencias'] = df.groupby(['LOGRADOURO', 'BAIRRO', 'CIDADE'])['LOGRADOURO'].transform('count')
     df.sort_values(['contagem_ocorrencias'], inplace=True, ascending=[False])
     df.reset_index(drop=True, inplace=True)
+
+    ultimo_documento = await db.buscar_ultimo_inserido()
+
+    if ultimo_documento is not None:
+        indice_ultimo_bo = df.query('NUM_BO == "{}"'.format(ultimo_documento['num_bo'])).index.values.max()
+        df = df.drop(df.index[0:indice_ultimo_bo+1])
+        df.reset_index(drop=True, inplace=True)
+
+    tamanho_df = len(df)
+    i = 0
     while i < tamanho_df:
         o = df.loc[i]
         i += 1
@@ -188,7 +196,7 @@ async def tratar_ocorrencia(registro: Series, enderecos: Enderecos):
         registro['NOME_DELEGACIA'],
         registro['DATA_COMUNICACAO']
     )
-    horario_bo = registro['HORA_OCORRENCIA_BO']
+
     query_cidade_bairro = {
         'cidade': normalizar(ocorrencia.cidade),
         'bairro': normalizar(ocorrencia.bairro)
