@@ -35,6 +35,7 @@ class Db:
     async def excluir(self, query):
         await self.colecao.delete_many(query)
 
+
     async def inserir(self, insert):
         await self.colecao.insert_one(insert)
 
@@ -42,7 +43,7 @@ class Db:
         await self.colecao.insert_many(insert)
 
     async def buscar_max(self, campo):
-        return await self.colecao.find_one(sort=[(campo, -1)])
+        return await self.colecao.find_one({},sort=[(campo, -1)])
 
     async def buscar(self, query):
         return await self.colecao.find(query)
@@ -50,5 +51,3 @@ class Db:
     async def buscar_unico(self, query):
         return await self.colecao.find_one(query)
 
-    async def buscar_ultimo_inserido(self):
-        return await self.colecao.find_one({}, sort=[('_id', -1)])

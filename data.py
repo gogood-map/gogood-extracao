@@ -13,10 +13,14 @@ from models.Ocorrencia import Ocorrencia
 db = Db('ocorrencias-detalhadas')
 ano_base = 0
 
+df: DataFrame = None
 
-async def ler_base_excel(caminho_arquivo: str, ano: int, enderecos: Enderecos):
+
+async def ler_base(caminho_arquivo: str, ano: int, enderecos: Enderecos):
     global ano_base
-    definir_ano(ano)
+    global df
+    ano_base = ano
+
     print(ano_base)
     print("Lendo Base de Ocorrências")
 
@@ -27,24 +31,23 @@ async def ler_base_excel(caminho_arquivo: str, ano: int, enderecos: Enderecos):
     df_base['DATA_COMUNICACAO'] = pandas.to_datetime(df_base['DATA_COMUNICACAO'], errors='coerce', dayfirst=True)
 
     df_base['DATA_OCORRENCIA_BO'] = pandas.to_datetime(df_base['DATA_OCORRENCIA_BO'], errors='coerce', dayfirst=True)
-
     print(f"A Base contém {df_base['NUM_BO'].shape[0]} registros não tratados.")
     print("Tratando dados...")
-    df_ocorrencias_vias_publicas = tratar_base(df_base)
+    df_base = tratar_base(df_base)
 
-    await inserir_dados(df_ocorrencias_vias_publicas, enderecos)
+    await pre_insercao_ocorrencias(df_base, enderecos)
 
 
-def tratar_base(df: DataFrame):
-    ocorrencias_invalidas = df.query(
+def tratar_base(df_sem_tratamento: DataFrame):
+    ocorrencias_invalidas = df_sem_tratamento.query(
         f"LATITUDE.isnull() | LONGITUDE.isnull() | LATITUDE == '0' | LONGITUDE == '0' or DATA_OCORRENCIA_BO < '{ano_base}-01-01' or DATA_OCORRENCIA_BO > '{ano_base}-12-31'",
         engine='python').index
 
-    df.drop(ocorrencias_invalidas, axis=0, inplace=True)
-    df["LATITUDE"] = df["LATITUDE"].replace(",", ".", regex=True)
-    df["LONGITUDE"] = df["LONGITUDE"].replace(",", ".", regex=True)
+    df_sem_tratamento.drop(ocorrencias_invalidas, axis=0, inplace=True)
+    df_sem_tratamento["LATITUDE"] = df_sem_tratamento["LATITUDE"].replace(",", ".", regex=True)
+    df_sem_tratamento["LONGITUDE"] = df_sem_tratamento["LONGITUDE"].replace(",", ".", regex=True)
 
-    df = df.astype(
+    df_sem_tratamento = df_sem_tratamento.astype(
         {
             'DATA_OCORRENCIA_BO': str,
             'DATA_COMUNICACAO': str
@@ -54,8 +57,7 @@ def tratar_base(df: DataFrame):
     del ocorrencias_invalidas
 
     gc.collect()
-    print(df.info())
-    df.drop(columns=[
+    df_sem_tratamento.drop(columns=[
         "NOME_DEPARTAMENTO",
         "NOME_SECCIONAL",
         "NUMERO_LOGRADOURO",
@@ -69,9 +71,11 @@ def tratar_base(df: DataFrame):
         "ANO_ESTATISTICA",
     ], axis=1, inplace=True)
 
-    df_sao_paulo = df[df['CIDADE'] == "S.PAULO"].sort_values(['BAIRRO', 'LOGRADOURO'], ascending=[True, True])
-    df_outros_municipios = df[df['CIDADE'] != "S.PAULO"].sort_values(['CIDADE', 'BAIRRO', 'LOGRADOURO'],
-                                                                     ascending=[True, True, True])
+    df_sao_paulo = df_sem_tratamento[df_sem_tratamento['CIDADE'] == "S.PAULO"].sort_values(['BAIRRO', 'LOGRADOURO'],
+                                                                                           ascending=[True, True])
+    df_outros_municipios = df_sem_tratamento[df_sem_tratamento['CIDADE'] != "S.PAULO"].sort_values(
+        ['CIDADE', 'BAIRRO', 'LOGRADOURO'],
+        ascending=[True, True, True])
 
     df_consolidado = pandas.concat([df_sao_paulo, df_outros_municipios], ignore_index=True)
 
@@ -82,18 +86,13 @@ def tratar_base(df: DataFrame):
     return ocorrencias_vias_publicas
 
 
-async def inserir_dados(df: DataFrame, enderecos: Enderecos):
+async def pre_insercao_ocorrencias(df_tratado: DataFrame, enderecos: Enderecos):
+    global df
+    df = df_tratado
 
     df['contagem_ocorrencias'] = df.groupby(['LOGRADOURO', 'BAIRRO', 'CIDADE'])['LOGRADOURO'].transform('count')
     df.sort_values(['contagem_ocorrencias'], inplace=True, ascending=[False])
     df.reset_index(drop=True, inplace=True)
-
-    ultimo_documento = await db.buscar_ultimo_inserido()
-
-    if ultimo_documento is not None:
-        indice_ultimo_bo = df.query('NUM_BO == "{}"'.format(ultimo_documento['num_bo'])).index.values.max()
-        df = df.drop(df.index[0:indice_ultimo_bo+1])
-        df.reset_index(drop=True, inplace=True)
 
     tamanho_df = len(df)
     i = 0
@@ -120,9 +119,9 @@ async def inserir_dados(df: DataFrame, enderecos: Enderecos):
 
         df_ocorrencias_mesmo_endereco = df.query(
             'LOGRADOURO == "{}" & BAIRRO == "{}" & CIDADE == "{}"'.format(
-                ocorrencia.rua,
-                ocorrencia.bairro,
-                ocorrencia.cidade
+                ocorrencia.rua.replace("'", "").replace('"', ""),
+                ocorrencia.bairro.replace("'", "").replace('"', ""),
+                ocorrencia.cidade.replace("'", "").replace('"', "")
             ))
 
         indices_exclusao = df_ocorrencias_mesmo_endereco.index
@@ -142,51 +141,67 @@ async def inserir_ocorrencias(df_insercao: DataFrame):
     lista_insercao = []
 
     while i < tamanho_df:
-        lista_insercao.append(converter_linha_documento(df_insercao.loc[i]))
+        lista_insercao.append(transformar_linha_em_ocorrencia(df_insercao.loc[i]).converter_em_documento())
         i += 1
 
     await db.inserir_lista(lista_insercao)
 
 
-def converter_linha_documento(linha: Series):
-    ocorrencia = Ocorrencia(
-        ano_base,
-        linha["NUM_BO"],
-        linha["DESCR_TIPOLOCAL"],
-        "{}".format(linha["LOGRADOURO"]).split(",")[0],
-        linha["LATITUDE"],
-        linha["LONGITUDE"],
-        linha["NATUREZA_APURADA"],
-        linha["BAIRRO"],
-        linha["CIDADE"],
-        linha['DATA_OCORRENCIA_BO'],
-        linha['NOME_DELEGACIA'],
-        linha['DATA_COMUNICACAO']
-    )
-
-    geojson = {'type': "Point", 'coordinates': [float(ocorrencia.lng), float(ocorrencia.lat)]}
-    documento = {
-        'num_bo': ocorrencia.num_bo,
-        'localizacao': geojson,
-        'crime': ocorrencia.crime,
-        'tipo_local': ocorrencia.local,
-        'ano': ocorrencia.ano,
-        'rua': ocorrencia.rua,
-        'bairro': ocorrencia.bairro,
-        'delegacia': ocorrencia.delegacia,
-        'cidade': ocorrencia.cidade,
-        'data_ocorrencia': ocorrencia.data,
-        'data_abertura_bo': ocorrencia.data_bo,
-    }
-    return documento
-
-
 async def tratar_ocorrencia(registro: Series, enderecos: Enderecos):
+    ocorrencia = transformar_linha_em_ocorrencia(registro)
+
+    rua_normalizada = normalizar(ocorrencia.rua)
+    bairro_normalizado = normalizar(ocorrencia.bairro)
+    cidade_normalizada = normalizar(ocorrencia.cidade)
+
+    query_cidade_bairro = {
+        'cidade': cidade_normalizada,
+        'bairro': bairro_normalizado
+    }
+
+    if bairro_normalizado not in enderecos.bairros and cidade_normalizada not in enderecos.cidades or rua_normalizada not in enderecos.logradouros:
+
+        busca_cidade_bairro = await db.buscar_unico(query_cidade_bairro)
+        if busca_cidade_bairro:
+            query_rua = {'rua': rua_normalizada}
+            doc_rua = await db.buscar_unico(query_rua)
+
+            if doc_rua is None:
+                ocorrencia = await buscar_informacoes_endereco_ocorrencia(ocorrencia)
+            else:
+                ocorrencia.rua = rua_normalizada
+                ocorrencia.bairro = bairro_normalizado
+                ocorrencia.cidade = cidade_normalizada
+        else:
+            ocorrencia = await buscar_informacoes_endereco_ocorrencia(ocorrencia)
+    else:
+        ocorrencia.rua = rua_normalizada
+        ocorrencia.bairro = bairro_normalizado
+        ocorrencia.cidade = cidade_normalizada
+
+    return ocorrencia
+
+
+async def buscar_informacoes_endereco_ocorrencia(ocorrencia):
+    busca = asyncio.create_task(reverter_coordenada_em_endereco(ocorrencia.lat, ocorrencia.lng))
+    rua, bairro, cidade = await busca
+
+    ocorrencia.rua = normalizar(rua) if rua != "" else normalizar(ocorrencia.rua)
+    ocorrencia.bairro = normalizar(bairro) if bairro != "" else normalizar(ocorrencia.bairro)
+    ocorrencia.cidade = normalizar(cidade) if cidade != "" else normalizar(ocorrencia.cidade)
+
+    if ocorrencia.cidade == "S.PAULO":
+        ocorrencia.cidade = "SAO PAULO"
+    return ocorrencia
+
+
+def transformar_linha_em_ocorrencia(registro: Series):
+    global ano_base
     ocorrencia = Ocorrencia(
-        ano_base,
+        registro["ANO_BO"].item(),
         registro["NUM_BO"],
         registro["DESCR_TIPOLOCAL"],
-        "{}".format(registro["LOGRADOURO"]).split(",")[0],
+        "{}".format(registro["LOGRADOURO"]).replace("'", "").replace('"', "").split(",")[0],
         registro["LATITUDE"],
         registro["LONGITUDE"],
         registro["NATUREZA_APURADA"],
@@ -196,64 +211,6 @@ async def tratar_ocorrencia(registro: Series, enderecos: Enderecos):
         registro['NOME_DELEGACIA'],
         registro['DATA_COMUNICACAO']
     )
-
-    query_cidade_bairro = {
-        'cidade': normalizar(ocorrencia.cidade),
-        'bairro': normalizar(ocorrencia.bairro)
-    }
-
-    if (normalizar(ocorrencia.bairro) not in enderecos.bairros and normalizar(
-            ocorrencia.cidade) not in enderecos.cidades
-            or normalizar(ocorrencia.rua) not in enderecos.logradouros):
-        busca_cidade_bairro = await db.buscar_unico(query_cidade_bairro)
-        if busca_cidade_bairro:
-            query_rua = {'rua': normalizar(ocorrencia.rua)}
-            doc_rua = await db.buscar_unico(query_rua)
-
-            if doc_rua is None:
-                ocorrencia = await buscar_informacoes_endereco_ocorrencia(ocorrencia)
-            else:
-                ocorrencia.rua = normalizar(ocorrencia.rua)
-                ocorrencia.bairro = normalizar(ocorrencia.bairro)
-                ocorrencia.cidade = normalizar(ocorrencia.cidade)
-        else:
-            ocorrencia = await buscar_informacoes_endereco_ocorrencia(ocorrencia)
-    else:
-        ocorrencia.rua = normalizar(ocorrencia.rua)
-        ocorrencia.bairro = normalizar(ocorrencia.bairro)
-        ocorrencia.cidade = normalizar(ocorrencia.cidade)
-
-    return ocorrencia
-
-
-def definir_periodo(hora):
-    horario = datetime.strptime("{}".format(hora), "%H:%M:%S")
-
-    madrugada = horario.replace(hour=0, minute=0)
-    manha = horario.replace(hour=5, minute=59)
-    tarde = horario.replace(hour=12, minute=0)
-    noite = horario.replace(hour=19, minute=0)
-
-    if horario >= madrugada and horario < manha:
-        return "Madrugada"
-    elif horario >= manha and horario < tarde:
-        return "Manhã"
-    elif horario >= tarde and horario < noite:
-        return "Tarde"
-    else:
-        return "Noite"
-
-
-async def buscar_informacoes_endereco_ocorrencia(ocorrencia):
-    busca = asyncio.create_task(reverter_coordenada_em_endereco(ocorrencia.lat, ocorrencia.lng))
-    rua, bairro, cidade = await busca
-
-    ocorrencia.rua = normalizar(rua) if rua != "" else ocorrencia.rua
-    ocorrencia.bairro = normalizar(bairro) if bairro != "" else ocorrencia.bairro
-    ocorrencia.cidade = normalizar(cidade) if cidade != "" else ocorrencia.cidade
-
-    if ocorrencia.cidade == "S.PAULO":
-        ocorrencia.cidade = "SAO PAULO"
     return ocorrencia
 
 
@@ -262,8 +219,3 @@ def normalizar(texto):
     texto = texto.replace('"', "")
     texto = texto.replace("'", "")
     return "{}".format(unidecode(texto)).upper().strip()
-
-
-def definir_ano(ano):
-    global ano_base
-    ano_base = ano

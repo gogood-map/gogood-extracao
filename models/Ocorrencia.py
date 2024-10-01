@@ -1,3 +1,6 @@
+from pandas import Series
+
+
 class Ocorrencia:
     ano: int
     num_bo: str
@@ -49,3 +52,20 @@ class Ocorrencia:
                 if i == 3:
                     lng_formatada += "."
             self.lng = lng_formatada
+
+    def converter_em_documento(self):
+        geojson = {'type': "Point", 'coordinates': [float(self.lng), float(self.lat)]}
+        documento = {
+            'num_bo': self.num_bo,
+            'localizacao': geojson,
+            'crime': self.crime,
+            'tipo_local': self.local,
+            'ano': self.ano,
+            'rua': self.rua,
+            'bairro': self.bairro,
+            'delegacia': self.delegacia,
+            'cidade': self.cidade,
+            'data_ocorrencia': self.data,
+            'data_abertura_bo': self.data_bo,
+        }
+        return documento
