@@ -26,9 +26,9 @@ async def ler_base(caminho_arquivo: str, ano: int, enderecos: Enderecos):
 
     df_base = pandas.read_csv(caminho_arquivo, sep=";",
                               dtype={'LATITUDE': str, 'LONGITUDE': str, 'NUM_BO': str, 'DATA_OCORRENCIA_BO': str,
-                                     'DATA_COMUNICACAO': str, "ANO_BO": int}, low_memory=False)
+                                     'DATA_REGISTRO': str, "ANO_BO": int}, low_memory=False)
 
-    df_base['DATA_COMUNICACAO'] = pandas.to_datetime(df_base['DATA_COMUNICACAO'], errors='coerce', dayfirst=True)
+    df_base['DATA_REGISTRO'] = pandas.to_datetime(df_base['DATA_REGISTRO'], errors='coerce', dayfirst=True)
 
     df_base['DATA_OCORRENCIA_BO'] = pandas.to_datetime(df_base['DATA_OCORRENCIA_BO'], errors='coerce', dayfirst=True)
     print(f"A Base contém {df_base['NUM_BO'].shape[0]} registros não tratados.")
@@ -50,7 +50,7 @@ def tratar_base(df_sem_tratamento: DataFrame):
     df_sem_tratamento = df_sem_tratamento.astype(
         {
             'DATA_OCORRENCIA_BO': str,
-            'DATA_COMUNICACAO': str
+            'DATA_REGISTRO': str
         }
     )
 
@@ -80,7 +80,7 @@ def tratar_base(df_sem_tratamento: DataFrame):
     df_consolidado = pandas.concat([df_sao_paulo, df_outros_municipios], ignore_index=True)
 
     ocorrencias_vias_publicas = df_consolidado.query(
-        'DESCR_TIPOLOCAL == "Via Pública" | DESCR_TIPOLOCAL == "Ciclofaixa" | DESCR_TIPOLOCAL == "Praça"')
+        'DESCR_SUBTIPOLOCAL == "Via Pública" | DESCR_SUBTIPOLOCAL == "Ciclofaixa" | DESCR_SUBTIPOLOCAL == "Praça"')
 
     print(f"Serão inseridos {ocorrencias_vias_publicas['NUM_BO'].shape[0]} registros tratados.")
     return ocorrencias_vias_publicas
@@ -200,7 +200,7 @@ def transformar_linha_em_ocorrencia(registro: Series):
     ocorrencia = Ocorrencia(
         registro["ANO_BO"].item(),
         registro["NUM_BO"],
-        registro["DESCR_TIPOLOCAL"],
+        registro["DESCR_SUBTIPOLOCAL"],
         "{}".format(registro["LOGRADOURO"]).replace("'", "").replace('"', "").split(",")[0],
         registro["LATITUDE"],
         registro["LONGITUDE"],
@@ -209,7 +209,7 @@ def transformar_linha_em_ocorrencia(registro: Series):
         registro["CIDADE"],
         registro['DATA_OCORRENCIA_BO'],
         registro['NOME_DELEGACIA'],
-        registro['DATA_COMUNICACAO']
+        registro['DATA_REGISTRO']
     )
     return ocorrencia
 

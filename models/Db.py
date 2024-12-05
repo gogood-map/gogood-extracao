@@ -20,8 +20,8 @@ class Db:
             uri = "mongodb://%s:%s@%s" % (
                 quote_plus(os.getenv('MONGO_USER')), quote_plus(os.getenv('MONGO_PASSWORD')), os.getenv('MONGO_HOST'))
 
-            uri_local = "mongodb://localhost:27017/"
-            cliente = motor.motor_asyncio.AsyncIOMotorClient(uri_local)
+
+            cliente = motor.motor_asyncio.AsyncIOMotorClient(uri)
             db = cliente['gogood']
             print("Conexão ao MongoDB bem-sucedida.")
             return db
